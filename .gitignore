@@ -2,3 +2,6 @@ bin/
 *.o
 *.mod
 *.exe
+*.dat
+fort.*
+myprogram*

@@ -38,6 +38,48 @@ example you can build and run.
 30. [Recursive functions](#30-recursive-functions)
 31. [pure](#31-pure)
 32. [elemental](#32-elemental)
+33. [Arrays](#33-arrays)
+34. [Array shapes: reshape & shape](#34-array-shapes-reshape--shape)
+35. [Array intrinsics: transpose, matmul, dot_product, conjg](#35-array-intrinsics-transpose-matmul-dot_product-conjg)
+36. [Array reduction functions](#36-array-reduction-functions)
+37. [Array location & masking functions](#37-array-location--masking-functions)
+38. [The where construct](#38-the-where-construct)
+39. [Passing arrays: assumed shape, assumed size, adjustable size](#39-passing-arrays-assumed-shape-assumed-size-adjustable-size)
+40. [Array bounds: size, lbound, ubound](#40-array-bounds-size-lbound-ubound)
+41. [Assumed-rank arrays](#41-assumed-rank-arrays)
+42. [Allocatable arrays](#42-allocatable-arrays)
+43. [allocate's stat= argument](#43-allocates-stat-argument)
+44. [Automatic arrays](#44-automatic-arrays)
+45. [Procedure overloading](#45-procedure-overloading)
+46. [Operator overloading](#46-operator-overloading)
+47. [Assignment overloading](#47-assignment-overloading)
+48. [I/O basics: print, write, and format labels](#48-io-basics-print-write-and-format-labels)
+49. [Standard units](#49-standard-units)
+50. [Reading from a string](#50-reading-from-a-string)
+51. [Integer format descriptors](#51-integer-format-descriptors)
+52. [Real format descriptors](#52-real-format-descriptors)
+53. [General (G) and logical (L) format descriptors](#53-general-g-and-logical-l-format-descriptors)
+54. [Writing to a string](#54-writing-to-a-string)
+55. [Arbitrary unit numbers](#55-arbitrary-unit-numbers)
+56. [inquire](#56-inquire)
+57. [Writing to a file](#57-writing-to-a-file)
+58. [Reading from a file](#58-reading-from-a-file)
+59. [Binary (unformatted) files](#59-binary-unformatted-files)
+60. [newunit](#60-newunit)
+61. [Pointers: basics](#61-pointers-basics)
+62. [Pointers: associated & null](#62-pointers-associated--null)
+63. [Pointers to array slices](#63-pointers-to-array-slices)
+64. [Conditional compilation](#64-conditional-compilation)
+65. [Macro expansion](#65-macro-expansion)
+66. [Debugging flags catch what -Wall misses](#66-debugging-flags-catch-what--wall-misses)
+67. [Compiling, linking, and inspecting binaries](#67-compiling-linking-and-inspecting-binaries)
+68. [Linking against a library](#68-linking-against-a-library)
+69. [Command line arguments](#69-command-line-arguments)
+70. [Random numbers](#70-random-numbers)
+71. [One job per routine](#71-one-job-per-routine)
+72. [Named constants instead of magic numbers](#72-named-constants-instead-of-magic-numbers)
+73. [Closing puzzle: a recursive sequence](#73-closing-puzzle-a-recursive-sequence)
+74. [Profiling with gprof](#74-profiling-with-gprof)
 
 ---
 
@@ -1110,3 +1152,1591 @@ end program elemental_demo
 [section 31](#31-pure), just called with an array instead of one value.
 
 (see [src/32_elemental.f90](../src/32_elemental.f90)) — build & run: `make && ./bin/32_elemental`
+
+---
+
+## 33. Arrays
+
+`integer :: arr(5)` declares a fixed-size array of 5 integers. An
+**array constructor**, `[...]`, builds an array from a list of values in
+one go. Indexing starts at **1**, not 0 — `arr(1)` is the first element.
+
+```fortran
+program arrays
+  implicit none
+  integer :: arr(5)   ! a fixed-size array of 5 integers
+
+  arr = [1, 2, 3, 4, 5]   ! array constructor: builds an array from a list
+
+  print *, arr        ! prints every element
+  print *, arr(3)      ! indexing starts at 1, not 0
+
+end program arrays
+```
+
+`print *, arr` prints all 5 elements; `arr(3)` is `3`.
+
+(see [src/33_arrays.f90](../src/33_arrays.f90)) — build & run: `make && ./bin/33_arrays`
+
+---
+
+## 34. Array shapes: reshape & shape
+
+Arrays can have more than one dimension — `integer :: matrix(2, 3)`
+specifies a 2-row, 3-column array. `reshape(array, new_shape)` takes an
+existing array and reinterprets it with a different shape (given as an
+array of dimension sizes). `shape(array)` goes the other way: given an
+array, it reports its dimension sizes.
+
+```fortran
+program array_shapes
+  implicit none
+  integer :: flat(6)
+  integer :: matrix(2, 3)   ! a 2-row, 3-column array
+
+  flat = [1, 2, 3, 4, 5, 6]
+  matrix = reshape(flat, [2, 3])   ! reshape the flat array into 2 rows, 3 columns
+
+  print *, matrix
+  print *, shape(matrix)           ! shape() reports an array's dimensions
+
+end program array_shapes
+```
+
+Fortran stores arrays in **column-major** order, so `matrix` still
+prints as `1 2 3 4 5 6` — same memory layout as `flat`, just reinterpreted
+as 2×3. `shape(matrix)` prints `2 3`.
+
+(see [src/34_array_shapes.f90](../src/34_array_shapes.f90)) — build & run: `make && ./bin/34_array_shapes`
+
+---
+
+## 35. Array intrinsics: transpose, matmul, dot_product, conjg
+
+- `transpose(a)` — flips a 2D array's rows and columns.
+- `matmul(a, b)` — matrix multiplication (not element-wise — proper
+  row-by-column matrix product).
+- `dot_product(v1, v2)` — sums the element-wise products of two vectors
+  into a single scalar.
+- `conjg(z)` — complex conjugate: flips the sign of the imaginary part.
+
+```fortran
+program array_intrinsics
+  implicit none
+  real :: a(2,2), b(2,2), c(2,2)
+  real :: v1(3), v2(3), d
+  complex :: z(2)
+
+  a = reshape([1.0, 2.0, 3.0, 4.0], [2,2])
+  b = reshape([5.0, 6.0, 7.0, 8.0], [2,2])
+
+  print *, transpose(a)   ! flips rows and columns
+
+  c = matmul(a, b)        ! matrix multiplication
+  print *, c
+
+  v1 = [1.0, 2.0, 3.0]
+  v2 = [4.0, 5.0, 6.0]
+  d = dot_product(v1, v2) ! sum of element-wise products
+  print *, d
+
+  z = [(1.0, 2.0), (3.0, -4.0)]
+  print *, conjg(z)        ! flips the sign of the imaginary part
+
+end program array_intrinsics
+```
+
+`a` is `[[1,3],[2,4]]` and `b` is `[[5,7],[6,8]]` (column-major, from
+[section 34](#34-array-shapes-reshape--shape)). `transpose(a)` prints
+`1 3 2 4` (now `[[1,2],[3,4]]`); `matmul(a,b)` prints `23 34 31 46`
+(`[[23,31],[34,46]]`); `dot_product` gives `32`; `conjg` gives
+`(1,-2)` and `(3,4)`.
+
+(see [src/35_array_intrinsics.f90](../src/35_array_intrinsics.f90)) — build & run: `make && ./bin/35_array_intrinsics`
+
+---
+
+## 36. Array reduction functions
+
+These all collapse a whole array down to a single value:
+
+- `sum(arr)` / `product(arr)` — total sum / product of all elements.
+- `maxval(arr)` / `minval(arr)` — the largest / smallest element.
+- `count(mask)` — how many elements of a logical mask are `.true.`.
+- `all(mask)` — `.true.` only if *every* element satisfies the mask.
+- `any(mask)` — `.true.` if *at least one* element satisfies the mask.
+
+```fortran
+program array_reduction
+  implicit none
+  integer :: arr(5)
+  logical :: mask(5)
+
+  arr = [3, -1, 4, 1, 5]
+  mask = arr > 0
+
+  print *, sum(arr)      ! total of all elements
+  print *, product(arr)  ! product of all elements
+  print *, maxval(arr)   ! largest element
+  print *, minval(arr)   ! smallest element
+  print *, count(mask)   ! how many elements satisfy the mask
+  print *, all(mask)     ! true only if every element satisfies the mask
+  print *, any(mask)     ! true if at least one element satisfies the mask
+
+end program array_reduction
+```
+
+For `arr = [3, -1, 4, 1, 5]`: `sum` = `12`, `product` = `-60`, `maxval`
+= `5`, `minval` = `-1`; `mask` is `[T,F,T,T,T]`, so `count` = `4`, `all`
+= `F` (one element fails), `any` = `T`.
+
+(see [src/36_array_reduction.f90](../src/36_array_reduction.f90)) — build & run: `make && ./bin/36_array_reduction`
+
+---
+
+## 37. Array location & masking functions
+
+- `maxloc(arr)` / `minloc(arr)` — the *index* (not the value) of the
+  largest / smallest element.
+- `merge(tsource, fsource, mask)` — elementwise choice: `tsource` where
+  `mask` is true, `fsource` where it's false.
+- `pack(arr, mask)` — compacts only the elements where `mask` is true
+  into a smaller array, in order.
+- `unpack(vector, mask, field)` — the reverse of `pack`: scatters
+  `vector`'s values back into the positions where `mask` is true, filling
+  everywhere else from `field`.
+
+```fortran
+program array_location
+  implicit none
+  integer :: arr(5)
+  integer :: packed(4)
+  integer :: restored(5)
+
+  arr = [3, -1, 4, 1, 5]
+
+  print *, maxloc(arr)   ! index of the largest element
+  print *, minloc(arr)   ! index of the smallest element
+
+  print *, merge(1, 0, arr > 0)   ! elementwise: 1 where true, 0 where false
+
+  packed = pack(arr, arr > 0)     ! keep only elements where the mask is true
+  print *, packed
+
+  restored = unpack(packed, arr > 0, 0)   ! scatter back, filling gaps with 0
+  print *, restored
+
+end program array_location
+```
+
+For `arr = [3, -1, 4, 1, 5]`: `maxloc` = `5` (index of `5`), `minloc` =
+`2` (index of `-1`); `merge` gives `1 0 1 1 1`; `pack` (mask `arr>0` has
+4 trues) gives `3 4 1 5`; `unpack` scatters those back into the true
+positions, filling the one false position with `0`, exactly
+reconstructing `arr`.
+
+(see [src/37_array_location.f90](../src/37_array_location.f90)) — build & run: `make && ./bin/37_array_location`
+
+---
+
+## 38. The where construct
+
+`where (mask) ... elsewhere ... end where` is an array-wide conditional
+assignment — like an elementwise `if/else`, applied to every element of
+an array at once, based on a logical array (the `mask`).
+
+```fortran
+program where_construct
+  implicit none
+  integer :: arr(5)
+
+  arr = [3, -1, 4, 1, -5]
+
+  where (arr > 0)
+    arr = arr * 2
+  elsewhere
+    arr = 0
+  end where
+
+  print *, arr
+
+end program where_construct
+```
+
+Positive elements get doubled, everything else becomes `0`:
+`6 0 8 2 0`.
+
+(see [src/38_where_construct.f90](../src/38_where_construct.f90)) — build & run: `make && ./bin/38_where_construct`
+
+---
+
+## 39. Passing arrays: assumed shape, assumed size, adjustable size
+
+Three different ways a subroutine's dummy argument can receive an array,
+each with different consequences:
+
+- **Assumed shape** — `x(:)`. The array's size travels along with it
+  automatically (via a hidden descriptor), so whole-array operations
+  like `x = 10.0` just work, and you don't need to pass the size
+  separately. This is the modern (Fortran 90+) style, but requires an
+  *explicit interface* — i.e. the subroutine must be in a module or
+  `contains`ed, not a bare external procedure.
+
+  ```fortran
+  subroutine pass1(x)
+    real, intent(inout) :: x(:)   ! assumed shape: size is known automatically
+    x = 10.0                       ! whole-array assignment works
+  end subroutine pass1
+  ```
+  (see [src/39_assumed_shape.f90](../src/39_assumed_shape.f90)) — build & run: `make && ./bin/39_assumed_shape`
+
+- **Assumed size** — `x(*)`. The old Fortran 77 style: the subroutine
+  has *no idea* how big the array actually is — `*` just means "keep
+  going as far as you tell me to." You must pass the size separately
+  (as `n` here) and loop by hand; whole-array operations aren't allowed
+  because the compiler doesn't know the true extent.
+
+  ```fortran
+  subroutine pass2(x, n)
+    integer, intent(in) :: n
+    real, intent(inout) :: x(*)   ! assumed size: extent is unknown, n must be passed separately
+    integer :: i
+
+    do i = 1, n
+      x(i) = 10.0                 ! no shape info, so no whole-array ops: must loop by hand
+    end do
+  end subroutine pass2
+  ```
+  (see [src/39_assumed_size.f90](../src/39_assumed_size.f90)) — build & run: `make && ./bin/39_assumed_size`
+
+- **Adjustable size** — `x(n)`. Also old-style, and you still must pass
+  the size (`n`) explicitly as another argument — but unlike assumed
+  size, the shape *is* fully known here (it's computed from `n`), so
+  whole-array operations work fine.
+
+  ```fortran
+  subroutine pass3(x, n)
+    integer, intent(in) :: n
+    real, intent(inout) :: x(n)   ! adjustable size: explicit shape, computed from n
+    x = 10.0                       ! shape is fully known, so whole-array ops work
+  end subroutine pass3
+  ```
+  (see [src/39_adjustable_size.f90](../src/39_adjustable_size.f90)) — build & run: `make && ./bin/39_adjustable_size`
+
+All three produce the same result here (`10 10 10 10 10`) — the
+difference is entirely about what the subroutine is *allowed* to do
+with the array and what you have to tell it explicitly.
+
+---
+
+## 40. Array bounds: size, lbound, ubound
+
+- `size(array, dim)` — how many elements along dimension `dim`.
+- `lbound(array, dim)` / `ubound(array, dim)` — the lower / upper index
+  bound of dimension `dim`. An array's lower bound defaults to `1`
+  unless declared otherwise (like `arr(-2:2, 3)` below, where the first
+  dimension explicitly starts at `-2`).
+
+```fortran
+program array_bounds
+  implicit none
+  real :: arr(-2:2, 3)   ! custom lower bound -2 in the first dimension
+
+  print *, size(arr, 1), size(arr, 2)     ! extent along each dimension
+  print *, lbound(arr, 1), ubound(arr, 1) ! lower/upper bound of dimension 1
+  print *, lbound(arr, 2), ubound(arr, 2) ! lower/upper bound of dimension 2
+
+end program array_bounds
+```
+
+`size` gives `5 3` (5 elements from `-2` to `2`, 3 elements from the
+default `1` to `3`). `lbound`/`ubound` of dimension 1 give `-2 2`;
+dimension 2 (using the default lower bound) gives `1 3`.
+
+(see [src/40_array_bounds.f90](../src/40_array_bounds.f90)) — build & run: `make && ./bin/40_array_bounds`
+
+---
+
+## 41. Assumed-rank arrays
+
+`a(..)` (a Fortran 2018 feature) lets one subroutine accept a scalar
+*or* an array of any number of dimensions — the caller can pass
+anything, and `rank(a)` reports how many dimensions it actually got
+(`0` for a scalar).
+
+```fortran
+program assumed_rank_demo
+  implicit none
+  real :: a0
+  real :: a1(2)
+  real :: a2(3,3)
+  real :: a3(4,4)
+
+  call sub(a0)
+  call sub(a1)
+  call sub(a2)
+  call sub(a3)
+
+contains
+
+  subroutine sub(a)
+    real, intent(inout) :: a(..)   ! assumed rank: accepts scalar or array of any rank
+    print *, rank(a)                ! rank() reports how many dimensions a has
+  end subroutine sub
+
+end program assumed_rank_demo
+```
+
+Prints `0 1 2 2` — the scalar, the 1D array, and the two 2D arrays.
+To actually do something *different* per rank inside `sub` (rather than
+just report it), Fortran has a `select rank` construct — same idea as
+`select case`, but branching on `rank(a)` instead of a value.
+
+(see [src/41_assumed_rank.f90](../src/41_assumed_rank.f90)) — build & run: `make && ./bin/41_assumed_rank`
+
+---
+
+## 42. Allocatable arrays
+
+An array declared `allocatable` has no size until you give it one at
+runtime with `allocate(...)` — useful when you don't know the size
+until the program is running. `allocated(a)` checks whether it
+currently has memory; `deallocate(a)` frees it again (and it can be
+`allocate`d again afterward, possibly with a different size).
+
+```fortran
+program allocatable_demo
+  implicit none
+  integer, allocatable :: a(:)
+
+  print *, allocated(a)   ! not allocated yet -> false
+
+  allocate(a(5))
+  a = 10
+  print *, allocated(a), a
+
+  deallocate(a)
+  print *, allocated(a)   ! false again
+
+end program allocatable_demo
+```
+
+(see [src/42_allocatable_arrays.f90](../src/42_allocatable_arrays.f90)) — build & run: `make && ./bin/42_allocatable_arrays`
+
+---
+
+## 43. allocate's stat= argument
+
+By default, a mistake like allocating an already-allocated array
+crashes the whole program with a runtime error. Adding `stat=` to
+`allocate` (or `deallocate`) catches that instead: it comes back `0` on
+success, or a nonzero error code if something went wrong, letting your
+program handle it instead of dying.
+
+```fortran
+program allocate_stat_demo
+  implicit none
+  integer, allocatable :: a(:)
+  integer :: info
+
+  allocate(a(5), stat=info)
+  print *, info   ! 0: success
+
+  allocate(a(10), stat=info)   ! a is already allocated: this would crash without stat=
+  print *, info                 ! nonzero: caught as an error instead
+
+  deallocate(a)   ! a is still holding the first allocation; free it before exiting
+
+end program allocate_stat_demo
+```
+
+(see [src/43_allocate_stat.f90](../src/43_allocate_stat.f90)) — build & run: `make && ./bin/43_allocate_stat`
+
+---
+
+## 44. Automatic arrays
+
+A local (non-allocatable, non-dummy) array can still be sized by a
+dummy argument, e.g. `real :: a(n)`. This is an **automatic array** —
+unlike an `allocatable` array, you never `allocate`/`deallocate` it
+yourself; it's created automatically when the procedure starts and
+destroyed automatically when it returns.
+
+```fortran
+program automatic_array_demo
+  implicit none
+
+  call show(5)
+
+contains
+
+  subroutine show(n)
+    integer, intent(in) :: n
+    real :: a(n)   ! automatic array: sized by n, exists only while show() runs
+    a = 1.0
+    print *, sum(a)
+  end subroutine show
+
+end program automatic_array_demo
+```
+
+(see [src/44_automatic_arrays.f90](../src/44_automatic_arrays.f90)) — build & run: `make && ./bin/44_automatic_arrays`
+
+---
+
+## 45. Procedure overloading
+
+An `interface` block can group several procedures under one shared
+generic name with `module procedure`. The compiler picks which actual
+procedure to call based on the argument's type at the call site — same
+name, different behavior depending on what you pass it. Like `final`
+([section 16](#16-type-bound-procedures)), this requires the
+procedures to live in a **module**.
+
+```fortran
+module overload_demo
+  implicit none
+
+  interface show
+    module procedure show_int, show_real   ! same name, two different implementations
+  end interface show
+
+contains
+
+  subroutine show_int(x)
+    integer, intent(in) :: x
+    print *, 'integer:', x
+  end subroutine show_int
+
+  subroutine show_real(x)
+    real, intent(in) :: x
+    print *, 'real:', x
+  end subroutine show_real
+
+end module overload_demo
+
+program overloading
+  use overload_demo
+  implicit none
+
+  call show(5)      ! compiler picks show_int, based on the argument's type
+  call show(3.14)   ! compiler picks show_real
+
+end program overloading
+```
+
+(see [src/45_overloading.f90](../src/45_overloading.f90)) — build & run: `make && ./bin/45_overloading`
+
+---
+
+## 46. Operator overloading
+
+`interface operator (+)` (or any arithmetic/relational operator, or a
+custom one written as `.xxx.`) lets you define what an operator means
+for your own derived type — same idea as procedure overloading, applied
+to an operator symbol instead of a name.
+
+```fortran
+module point_ops
+  implicit none
+
+  type :: point
+    real :: x, y
+  end type point
+
+  interface operator (+)
+    module procedure add_points   ! lets + work between two point values
+  end interface operator (+)
+
+contains
+
+  function add_points(a, b) result(c)
+    type(point), intent(in) :: a, b
+    type(point) :: c
+    c%x = a%x + b%x
+    c%y = a%y + b%y
+  end function add_points
+
+end module point_ops
+
+program operator_overloading
+  use point_ops
+  implicit none
+  type(point) :: p1, p2, p3
+
+  p1 = point(1.0, 2.0)
+  p2 = point(3.0, 4.0)
+  p3 = p1 + p2   ! uses our overloaded +
+
+  print *, p3%x, p3%y
+
+end program operator_overloading
+```
+
+`(1,2) + (3,4)` gives `(4,6)`.
+
+(see [src/46_operator_overloading.f90](../src/46_operator_overloading.f90)) — build & run: `make && ./bin/46_operator_overloading`
+
+---
+
+## 47. Assignment overloading
+
+`interface assignment (=)` lets you run your own subroutine whenever a
+value of your type is assigned with `=`. The subroutine always takes
+exactly two arguments: the target (`intent(out)`) and the source
+(`intent(in)`), in that order.
+
+```fortran
+module point_assign
+  implicit none
+
+  type :: point
+    real :: x, y
+  end type point
+
+  interface assignment (=)
+    module procedure copy_point   ! lets = run our own code on point values
+  end interface assignment (=)
+
+contains
+
+  subroutine copy_point(lhs, rhs)
+    type(point), intent(out) :: lhs
+    type(point), intent(in) :: rhs
+    print *, 'copying point'
+    lhs%x = rhs%x
+    lhs%y = rhs%y
+  end subroutine copy_point
+
+end module point_assign
+
+program assignment_overloading
+  use point_assign
+  implicit none
+  type(point) :: p1, p2
+
+  p1 = point(1.0, 2.0)   ! triggers copy_point
+  p2 = p1                 ! triggers copy_point again
+
+  print *, p2%x, p2%y
+
+end program assignment_overloading
+```
+
+Prints `copying point` twice — once for each `=` — proving both
+assignments actually ran through our subroutine instead of a silent
+default copy.
+
+(see [src/47_assignment_overloading.f90](../src/47_assignment_overloading.f90)) — build & run: `make && ./bin/47_assignment_overloading`
+
+---
+
+## 48. I/O basics: print, write, and format labels
+
+`print *, ...` is just shorthand for `write(*,*) ...` — identical
+output. `write`'s general form is `write(unit, format) list` — the
+first `*` means "the default unit" (screen), the second means "no
+particular format, use list-directed defaults." A format can be given
+inline as a string, or as a numbered label pointing at a separate
+`format` statement elsewhere in the same program unit — both do the
+same thing.
+
+```fortran
+program io_basics
+  implicit none
+  integer :: i, j
+
+  i = 5
+  j = 7
+
+  print *, 'Hello world'     ! print is shorthand for write(*,*)
+  write(*,*) 'Hello world'   ! identical output to the line above
+
+  write(*, '(2(i0,1x))') i, j   ! inline format string
+  write(*, 101) i, j             ! same format, given via a label instead
+  101 format(2(i0,1x))
+
+end program io_basics
+```
+
+(see [src/48_io_basics.f90](../src/48_io_basics.f90)) — build & run: `make && ./bin/48_io_basics`
+
+---
+
+## 49. Standard units
+
+`iso_fortran_env` provides named constants for the three standard I/O
+streams: `output_unit`, `error_unit`, `input_unit` — clearer than
+remembering that `*` means "the default unit" in `write`/`read`.
+
+```fortran
+program standard_units
+  use iso_fortran_env, only: output_unit, error_unit, input_unit
+  implicit none
+  integer :: n
+
+  write(output_unit, *) 'to standard output'
+  write(error_unit, *) 'to standard error'
+
+  write(output_unit, *) 'enter a number:'
+  read(input_unit, *) n
+  print *, 'you entered', n
+
+end program standard_units
+```
+
+(see [src/49_standard_units.f90](../src/49_standard_units.f90)) — build & run: `make && ./bin/49_standard_units` (type a number when prompted)
+
+---
+
+## 50. Reading from a string
+
+`read` doesn't only work from the keyboard — giving it a character
+variable instead of a unit number reads from *that string* instead
+(an "internal file"). Handy for parsing text you already have in memory.
+
+```fortran
+program read_from_string
+  implicit none
+  character(len=20) :: h
+  real :: f
+  integer :: a
+
+  h = '12.5 10'
+  read(h, *) f, a   ! reads from the string h, instead of from the keyboard
+
+  print *, f, a
+
+end program read_from_string
+```
+
+(see [src/50_read_from_string.f90](../src/50_read_from_string.f90)) — build & run: `make && ./bin/50_read_from_string`
+
+---
+
+## 51. Integer format descriptors
+
+`iW` in a format string means "integer, right-justified in a field `W`
+characters wide." `i0` means "use exactly as many digits as needed."
+`iW.M` pads with leading zeros to at least `M` digits, still within
+field width `W`. If the field is too narrow to fit the number, Fortran
+prints `*` instead of a truncated/wrong value.
+
+```fortran
+program integer_formatting
+  implicit none
+  integer :: i
+
+  i = 10
+
+  write(*, '(a10,i0)')   'i0 ', i     ! minimum digits needed
+  write(*, '(a10,i5)')   'i5 ', i     ! right-justified in a 5-character field
+  write(*, '(a10,i5.3)') 'i5.3 ', i   ! 5-char field, at least 3 digits (zero-padded)
+  write(*, '(a10,i1)')   'i1 ', i     ! field too narrow: prints '*' instead
+
+end program integer_formatting
+```
+
+For `i = 10`: `i0` gives `10`; `i5` gives `   10` (right-justified in
+5 chars); `i5.3` gives `  010` (zero-padded to 3 digits); `i1` (a field
+of only 1 character — too narrow for `10`) gives `*`.
+
+(see [src/51_integer_formatting.f90](../src/51_integer_formatting.f90)) — build & run: `make && ./bin/51_integer_formatting`
+
+---
+
+## 52. Real format descriptors
+
+- `Fw.d` — fixed-point: `w` total width, `d` digits after the decimal.
+- `Ew.d` — scientific notation (`E` exponent marker).
+- `Dw.d` — same as `E`, but with a `D` exponent marker (a legacy way to
+  flag double precision).
+- `ENw.d` — engineering notation: the exponent is always a multiple of 3.
+- `ESw.d` — scientific notation with exactly one nonzero leading digit.
+
+```fortran
+program real_formatting
+  implicit none
+  real :: b
+
+  b = 10.043
+
+  write(*, '(a10,f16.8)')  'f16.8 ', b    ! fixed-point notation
+  write(*, '(a10,e16.8)')  'e16.8 ', b    ! scientific notation
+  write(*, '(a10,d16.8)')  'd16.8 ', b    ! same as E, but with a D exponent marker
+  write(*, '(a10,en16.8)') 'en16.8 ', b   ! engineering notation: exponent is a multiple of 3
+  write(*, '(a10,es16.8)') 'es16.8 ', b   ! scientific notation with exactly one leading digit
+
+end program real_formatting
+```
+
+For `b = 10.043`: `f16.8` gives `10.04300022`; `e16.8` gives
+`0.10043000E+02`; `d16.8` gives `0.10043000D+02`; `en16.8` gives
+`10.04300022E+00`; `es16.8` gives `1.00430002E+01`.
+
+(see [src/52_real_formatting.f90](../src/52_real_formatting.f90)) — build & run: `make && ./bin/52_real_formatting`
+
+---
+
+## 53. General (G) and logical (L) format descriptors
+
+`Lw` formats a `logical` value (`T` or `F`) right-justified in a field
+`w` characters wide. `Gw.d` is the odd one out: it works for **any**
+type — integer, real, logical, even character — picking a sensible
+representation automatically, instead of needing a different
+descriptor (`i`, `f`, `l`, ...) per type.
+
+```fortran
+program general_and_logical_formatting
+  implicit none
+  logical :: l
+  integer :: i
+  real :: b
+
+  l = .true.
+  i = 10
+  b = 10.043
+
+  write(*, '(a10,l4)')    'l4 ', l     ! l: format descriptor specific to logicals
+  write(*, '(a10,g16.8)') 'g16.8 ', i  ! g: works for any type...
+  write(*, '(a10,g16.8)') 'g16.8 ', b  ! ...including real...
+  write(*, '(a10,g16.8)') 'g16.8 ', l  ! ...and logical
+
+end program general_and_logical_formatting
+```
+
+(see [src/53_general_and_logical_formatting.f90](../src/53_general_and_logical_formatting.f90)) — build & run: `make && ./bin/53_general_and_logical_formatting`
+
+---
+
+## 54. Writing to a string
+
+Just like `read` can pull from a string instead of the keyboard
+([section 50](#50-reading-from-a-string)), `write` can format its
+output *into* a character variable instead of the screen — build up a
+string in memory, then use it however you like. `advance='no'` on a
+`write` suppresses the usual trailing newline, so a later `write`
+continues on the same line.
+
+```fortran
+program write_to_string
+  implicit none
+  character(len=50) :: s
+  integer :: a
+  real :: b
+
+  a = 11
+  b = 39.5
+
+  write(s, '(a2,i0,1x,a2,f16.8)') 'a=', a, 'b=', b   ! writes into the string s, not the screen
+
+  write(*, '(a50)', advance='no') trim(s)   ! advance='no': don't start a new line after this
+  write(*,*) 'this goes on the prev line'
+
+end program write_to_string
+```
+
+(see [src/54_write_to_string.f90](../src/54_write_to_string.f90)) — build & run: `make && ./bin/54_write_to_string`
+
+---
+
+## 55. Arbitrary unit numbers
+
+A unit number in `read`/`write` doesn't have to be `*` or a named
+constant — any integer works. If that unit isn't already associated
+with an open file, gfortran creates a default-named one for you:
+`fort.<unit number>`.
+
+```fortran
+program arbitrary_unit
+  implicit none
+  integer :: i
+
+  i = 42
+  write(777, *) i   ! unit 777 isn't open yet, so gfortran creates a file: fort.777
+
+end program arbitrary_unit
+```
+
+Running this creates `fort.777` in the current directory, containing
+`42`.
+
+(see [src/55_arbitrary_unit.f90](../src/55_arbitrary_unit.f90)) — build & run: `make && ./bin/55_arbitrary_unit`
+
+---
+
+## 56. inquire
+
+`inquire` asks questions about a file without opening it: `exist`
+(does it exist on disk?), `opened` (is it currently open in *this*
+program?), `number` (which unit it's open on, or `-1` if not open).
+
+```fortran
+program inquire_demo
+  implicit none
+  logical :: file_exists, file_open
+  integer :: unit_number
+
+  inquire(file='scratch.dat', exist=file_exists, opened=file_open, number=unit_number)
+  print *, file_exists, file_open, unit_number   ! not created yet: F F -1
+
+  open(101, file='scratch.dat', status='unknown', action='write')
+
+  inquire(file='scratch.dat', exist=file_exists, opened=file_open, number=unit_number)
+  print *, file_exists, file_open, unit_number   ! now it exists and is open on unit 101
+
+  close(101, status='delete')   ! clean up: delete the file we just created
+
+end program inquire_demo
+```
+
+Prints `F F -1` before opening, `T T 101` after.
+`close(..., status='delete')` removes the file instead of just closing
+it — handy for cleaning up temporary files.
+
+(see [src/56_inquire.f90](../src/56_inquire.f90)) — build & run: `make && ./bin/56_inquire`
+
+---
+
+## 57. Writing to a file
+
+`open` connects a unit number to an actual file on disk. `status='unknown'`
+means "use it whether it already exists or not"; `action='write'`
+restricts this connection to writing. `close` disconnects the unit —
+after that, the file persists on disk with whatever was written.
+
+```fortran
+program write_to_file
+  implicit none
+
+  open(101, file='myfile.dat', status='unknown', action='write')
+  write(101, *) 'my first line in a file'
+  close(101)
+
+end program write_to_file
+```
+
+Running this creates `myfile.dat` containing that one line.
+
+(see [src/57_write_to_file.f90](../src/57_write_to_file.f90)) — build & run: `make && ./bin/57_write_to_file`
+
+---
+
+## 58. Reading from a file
+
+To read an existing file, open it with `status='old'` (fail if it
+doesn't exist, rather than silently creating it) and `action='read'`.
+`iostat=` on `read` catches any error instead of crashing (same idea as
+`allocate`'s `stat=` from [section 43](#43-allocates-stat-argument)).
+
+```fortran
+program read_from_file
+  implicit none
+  integer :: a, b, info
+
+  a = 10
+
+  open(101, file='myfile.dat', status='unknown', action='write')
+  write(101, *) a
+  close(101)
+
+  open(101, file='myfile.dat', status='old', action='read')
+  read(101, *, iostat=info) b
+  close(101)
+
+  print *, b, b + 1
+
+end program read_from_file
+```
+
+Writes `10` to the file, reopens it, reads it back into `b`, and
+prints `10 11`.
+
+(see [src/58_read_from_file.f90](../src/58_read_from_file.f90)) — build & run: `make && ./bin/58_read_from_file`
+
+---
+
+## 59. Binary (unformatted) files
+
+`form='unformatted'` writes the raw bytes of a value directly, instead
+of a human-readable text representation. Unformatted `read`/`write`
+statements take no format specifier at all — there's no text layout to
+describe. Binary files are smaller and keep full precision, but aren't
+human-readable and can depend on the machine that wrote them.
+
+```fortran
+program binary_files
+  implicit none
+  integer :: a, b, info
+
+  a = 10
+
+  open(101, file='myfile.dat', status='unknown', action='write', form='unformatted')
+  write(101) a          ! unformatted: no format specifier allowed
+  close(101)
+
+  open(101, file='myfile.dat', status='old', action='read', form='unformatted')
+  read(101, iostat=info) b
+  close(101)
+
+  print *, b, b + 1
+
+end program binary_files
+```
+
+Same result as [section 58](#58-reading-from-a-file) (`10 11`), just
+stored as raw bytes instead of text.
+
+(see [src/59_binary_files.f90](../src/59_binary_files.f90)) — build & run: `make && ./bin/59_binary_files`
+
+---
+
+## 60. newunit
+
+Instead of hardcoding a unit number (like `101` in sections 56–59) and
+risking it colliding with another open file somewhere else in a larger
+program, `open(newunit=my_unit, ...)` asks the compiler to pick an
+unused one and store it in your own integer variable.
+
+```fortran
+program newunit_demo
+  implicit none
+  integer :: my_unit
+
+  open(newunit=my_unit, file='myfile.dat', status='unknown', action='write')
+  write(my_unit, *) 'written via newunit'
+  close(my_unit)
+
+  print *, 'unit was:', my_unit   ! compiler-assigned, not a number we chose
+
+end program newunit_demo
+```
+
+On this gfortran, `my_unit` comes back as a negative number (e.g.
+`-10`) — that's normal; `newunit` deliberately picks negative values so
+they're obviously compiler-assigned rather than hand-chosen, and can
+never collide with a hardcoded unit number.
+
+(see [src/60_newunit.f90](../src/60_newunit.f90)) — build & run: `make && ./bin/60_newunit`
+
+---
+
+## 61. Pointers: basics
+
+A Fortran pointer doesn't hold data itself — it's an alias for another
+variable's storage. A variable a pointer can point to must be declared
+`target` (or be another pointer). `=>` is **pointer assignment** ("point
+at this"), completely different from `=` ("copy this value"). Once
+`a => i`, `a` and `i` refer to the exact same memory — changing one
+changes the other.
+
+```fortran
+program pointers_basic
+  implicit none
+  integer, pointer :: a
+  integer, target :: i
+
+  i = 100
+  a => i        ! a now points to i: they refer to the same memory
+
+  a = a + 50    ! modifies i, since a is just an alias for it
+  print *, i, a ! both show 150
+
+end program pointers_basic
+```
+
+Both `i` and `a` print `150` — modifying `a` really modified `i`.
+
+(see [src/61_pointers_basic.f90](../src/61_pointers_basic.f90)) — build & run: `make && ./bin/61_pointers_basic`
+
+---
+
+## 62. Pointers: associated & null
+
+`associated(ptr)` checks whether a pointer currently points at
+anything. `associated(ptr, target)` checks whether it points at that
+*specific* target. `ptr => null()` disassociates it — points at
+nothing.
+
+```fortran
+program pointer_associated
+  implicit none
+  integer, pointer :: a
+  integer, target :: i, k
+
+  i = 100
+  k = 300
+
+  a => i
+  print *, associated(a)      ! true: a points to something
+  print *, associated(a, i)   ! true: specifically to i
+  print *, associated(a, k)   ! false: not pointing to k
+
+  a => null()
+  print *, associated(a)      ! false: a points to nothing now
+
+end program pointer_associated
+```
+
+Prints `T`, `T`, `F`, `F` — `a` points to `i` (not `k`), then after
+`a => null()`, it points to nothing at all.
+
+(see [src/62_pointer_associated.f90](../src/62_pointer_associated.f90)) — build & run: `make && ./bin/62_pointer_associated`
+
+---
+
+## 63. Pointers to array slices
+
+A pointer can be an array itself, and it doesn't have to point at an
+entire target array — it can point at just a **slice** of one. This is
+one of the classic reasons to use pointers: work with part of an array
+without copying it.
+
+```fortran
+program pointer_arrays
+  implicit none
+  integer, pointer :: p(:)
+  integer, target :: arr(6)
+
+  arr = [1, 2, 3, 4, 5, 6]
+
+  p => arr(2:5)   ! points at a slice of arr, not the whole thing
+  print *, p       ! 2 3 4 5
+
+  p(1) = 99        ! modifies arr(2), since p is an alias for that slice
+  print *, arr
+
+end program pointer_arrays
+```
+
+`p` aliases `arr(2:5)`, so it prints `2 3 4 5`. Setting `p(1) = 99`
+writes through to `arr(2)`, giving `1 99 3 4 5 6`.
+
+(see [src/63_pointer_arrays.f90](../src/63_pointer_arrays.f90)) — build & run: `make && ./bin/63_pointer_arrays`
+
+---
+
+## 64. Conditional compilation
+
+Preprocessing isn't part of the Fortran standard itself (aside from
+`include`), but every modern compiler supports the C preprocessor's
+directives anyway. To activate it, the source file's extension must be
+**capitalized** (`.F90` instead of `.f90`) — that's the signal to the
+compiler "run the preprocessor on this file first." `#ifdef NAME ...
+#endif` includes that code only if `NAME` was defined at compile time
+(via a `-D` flag).
+
+```fortran
+program conditional_compilation
+  implicit none
+
+  print *, 'Hello World!!!'
+#ifdef MORE
+  ! only compiled in if MORE was defined at compile time (gfortran -DMORE)
+  print *, 'From Alin'
+#endif
+
+end program conditional_compilation
+```
+
+Built normally (`make`), only `Hello World!!!` prints — `MORE` isn't
+defined. Compile it manually with the macro defined to get the second
+line too:
+
+```sh
+gfortran -DMORE -o myprogram src/64_conditional_compilation.F90
+./myprogram
+```
+
+(see [src/64_conditional_compilation.F90](../src/64_conditional_compilation.F90)) — build & run: `make && ./bin/64_conditional_compilation`
+
+---
+
+## 65. Macro expansion
+
+`#define NAME(args) replacement` defines a macro: every place `NAME(...)`
+appears in the code gets textually replaced with `replacement` *before*
+the compiler ever sees it. Convenient, but easy to make code hard to
+read (or to get subtly wrong, e.g. via missing parentheses around
+arguments) — use sparingly.
+
+```fortran
+program macro_expansion
+  implicit none
+#define SQUARE_PLUS(x) (x*x+x)
+  real :: y
+
+  y = 10.0
+  print *, SQUARE_PLUS(y)   ! expands to (y*y+y) before compiling
+
+end program macro_expansion
+```
+
+`SQUARE_PLUS(10.0)` expands to `(10.0*10.0+10.0)` = `110`.
+
+(see [src/65_macro_expansion.F90](../src/65_macro_expansion.F90)) — build & run: `make && ./bin/65_macro_expansion`
+
+---
+
+## 66. Debugging flags catch what -Wall misses
+
+A classic bug: reading a variable before it's ever been assigned.
+Our Makefile's `-Wall -Wextra` already catches this *at compile time*
+as a warning — but a warning is easy to miss in a wall of build output,
+and the program still runs and silently produces a wrong answer instead
+of stopping.
+
+```fortran
+program uninitialized_bug
+  implicit none
+  integer :: a(5)
+  real :: c   ! never assigned a value
+
+  a = 10
+  call square(a)
+  print *, a
+  print *, a(5) * c   ! uses c before it's ever set
+
+contains
+
+  subroutine square(b)
+    integer, intent(inout) :: b(:)
+    b = b * b
+  end subroutine square
+
+end program uninitialized_bug
+```
+
+Built normally (`make`), this prints `0.0000000` for the last line —
+wrong, but not obviously broken; easy to miss in a larger program.
+Compiled instead with a set of debugging flags that specifically hunt
+for this class of bug:
+
+```sh
+gfortran -g -fbacktrace -fcheck=all \
+  -finit-real=snan -ffpe-trap=invalid,zero,overflow \
+  -o debug_demo src/66_uninitialized_bug.f90
+./debug_demo
+```
+
+- `-finit-real=snan` — initialize every `real` to a signaling NaN
+  instead of leaving it as garbage memory, so *using* an uninitialized
+  real is guaranteed to misbehave instead of maybe-by-luck working.
+- `-ffpe-trap=invalid,zero,overflow` — crash immediately on invalid
+  floating-point operations (like using that NaN), instead of quietly
+  propagating a wrong value.
+- `-fcheck=all` — adds runtime bounds/shape checking (array indices,
+  argument mismatches, etc).
+- `-g -fbacktrace` — keep debug info and print a line-by-line backtrace
+  when something does go wrong.
+
+With these flags, the program crashes immediately with a backtrace
+pointing at the exact line (`src/66_uninitialized_bug.f90:9`) —
+turning a silent wrong answer into an impossible-to-miss failure
+exactly where the bug is.
+
+(see [src/66_uninitialized_bug.f90](../src/66_uninitialized_bug.f90)) — build & run (normal): `make && ./bin/66_uninitialized_bug`
+
+---
+
+## 67. Compiling, linking, and inspecting binaries
+
+Turning source into a runnable program is really two steps that `make`
+(and a plain `gfortran -o prog file.f90`) does for you in one go:
+
+**1. Compile** (`-c`) — turns one source file into an object file
+(`.o`): checks the syntax, but doesn't produce anything runnable yet.
+A file containing only a `module` (no `program`) can only be compiled
+this way — it has no entry point, so it can never be linked into an
+executable by itself.
+
+**2. Link** — combines one or more object files (plus any system/user
+libraries) into an actual executable.
+
+This repo's own [src/67_compile_link/](../src/67_compile_link/) has a
+real two-file example: `math_utils.f90` (a module, compiled with `-c`
+only) and `use_math_utils.f90` (a program that `use`s it). It lives in
+a subdirectory rather than directly in `src/` — the Makefile's wildcard
+build only looks at `src/*.f90` directly, not subdirectories, and a
+module-only file would break `make all` if it tried to build one
+standalone (there's nothing to link into an executable).
+
+```fortran
+! math_utils.f90
+module math_utils
+  implicit none
+contains
+
+  function double_it(x) result(y)
+    real, intent(in) :: x
+    real :: y
+    y = x * 2.0
+  end function double_it
+
+end module math_utils
+```
+
+```fortran
+! use_math_utils.f90
+program use_math_utils
+  use math_utils
+  implicit none
+
+  print *, double_it(21.0)
+
+end program use_math_utils
+```
+
+Build it as two separate steps, from inside `src/67_compile_link/`:
+
+```sh
+mkdir -p mods
+gfortran -c -J mods -o mods/math_utils.o math_utils.f90     # compile the module
+gfortran -c -I mods -o use_math_utils.o use_math_utils.f90  # -I: find its .mod here
+gfortran -o myprogram use_math_utils.o mods/math_utils.o    # link both objects
+./myprogram
+```
+
+- `-J <dir>` — write the module's compiled `.mod` file into `<dir>`
+  instead of the current directory.
+- `-I <dir>` — when compiling something that `use`s a module, look in
+  `<dir>` for its `.mod` file. This is also how you'd point at a
+  third-party library's module files.
+- Prints `42.0000000` (`double_it(21.0)`).
+
+Errors from step 1 are about **syntax** (something in your code is
+wrong); errors from step 2 are about **missing pieces** (a function was
+declared but never defined anywhere, a library wasn't found, etc) —
+worth telling apart when something fails to build.
+
+Two inspection tools worth knowing: `nm math_utils.o` lists every
+symbol (function/variable name) an object file defines or needs —
+useful for figuring out exactly what a linker error is missing.
+`ldd myprogram` (Linux) lists which shared libraries a finished
+executable depends on at runtime.
+
+If you're linking against a genuine third-party library (not just your
+own module), the same `-I`/`-L` pattern extends to it: `-L<dir> -lfoo`
+tells the linker where to find `libfoo.a`/`libfoo.so` and to link
+against it.
+
+---
+
+## 68. Linking against a library
+
+A **library** is just a precompiled bundle of object files — you link
+against it instead of recompiling its source every time. A static
+library (`libfoo.a`) is built with `ar` (the archiver) from one or more
+`.o` files.
+
+This repo's [src/68_libraries/](../src/68_libraries/) has a real
+example: `mylib.f90` is "the library" (one function), and
+`use_library.f90` calls it *without ever including its source* —
+only the final linked binary needs both pieces.
+
+```fortran
+! mylib.f90 -- this is "the library": compiled once, archived, then
+! linked against by anyone who wants add_one, without ever seeing
+! this source again
+function add_one(x) result(y)
+  implicit none
+  real, intent(in) :: x
+  real :: y
+  y = x + 1.0
+end function add_one
+```
+
+```fortran
+! use_library.f90
+program use_library
+  implicit none
+  ! add_one lives in a library we'll link against, not in this file:
+  ! declaring it "external" tells the compiler to trust us on its
+  ! signature instead of needing a module/interface for it
+  real :: add_one
+  external :: add_one
+
+  print *, add_one(41.0)   ! resolved at link time, from libmylib.a
+
+end program use_library
+```
+
+Build it, from inside `src/68_libraries/`:
+
+```sh
+gfortran -c -o mylib.o mylib.f90        # 1. compile the library source
+ar rcs libmylib.a mylib.o                # 2. archive it into libmylib.a
+gfortran -o myprogram use_library.f90 -L. -lmylib   # 3. link against it
+./myprogram
+```
+
+- `ar rcs libfoo.a *.o` — bundles object files into a static library
+  named `libfoo.a`.
+- `-L.` — look for libraries in the current directory (`-L<dir>` for
+  anywhere else).
+- `-lmylib` — link against `libmylib.a` (the `lib` prefix and `.a`
+  suffix are assumed; you just write the middle part).
+- Prints `42.0000000` (`add_one(41.0)`).
+
+Note there's no `module` here, unlike [section 67](#67-compiling-linking-and-inspecting-binaries)
+— real precompiled libraries (especially older/C-interoperable ones)
+often only give you a compiled `.a`/`.so` and the function's signature
+in documentation, not a `.mod` file. `external` is how you call such a
+function anyway: it tells the compiler "trust me on this signature,"
+instead of relying on a module to check it for you.
+
+---
+
+## 69. Command line arguments
+
+Three intrinsics let a program read what it was invoked with:
+`get_command(cmd)` — the whole command line, as typed. `command_argument_count()`
+— how many arguments were passed. `get_command_argument(i, arg)` — the
+`i`th argument, as a string.
+
+```fortran
+program command_line_arguments
+  implicit none
+  integer :: count, i
+  character(len=255) :: cmd
+  character(len=25) :: argum
+
+  call get_command(cmd)
+  print *, trim(cmd)          ! the full command line used to invoke this program
+
+  count = command_argument_count()
+  print *, 'No of arguments: ', count
+
+  do i = 1, count
+    call get_command_argument(i, argum)
+    print *, 'argument no ', i, ' is: ', trim(argum)
+  end do
+
+end program command_line_arguments
+```
+
+Run it with some arguments to see it in action:
+
+```sh
+./bin/69_command_line_arguments 2003 577 889 inp
+```
+
+Prints the full command line, `No of arguments: 4`, then each argument
+numbered — `2003`, `577`, `889`, `inp`. All arguments come back as
+plain strings (`character`), even if they look like numbers — you'd
+need to convert them yourself (e.g. with `read`, section 50) if you
+need them as `integer`/`real`.
+
+(see [src/69_command_line_arguments.f90](../src/69_command_line_arguments.f90)) — build & run: `make && ./bin/69_command_line_arguments <some> <args>`
+
+---
+
+## 70. Random numbers
+
+`random_number(r)` fills `r` (scalar or array) with pseudo-random reals
+in `[0, 1)`. Left alone, the sequence differs every run. `random_seed`
+controls that: `random_seed(size=p)` asks the compiler how many
+integers its internal seed needs; `random_seed(put=seed)` sets that
+seed explicitly — the same seed always reproduces the exact same
+sequence of "random" numbers, which matters for reproducible tests/debugging.
+
+```fortran
+program random_numbers
+  implicit none
+  integer, allocatable :: seed(:)
+  real :: r(2)
+  integer :: is, i, p
+
+  is = 13
+  call random_seed(size=p)         ! p: how many integers this compiler's seed needs
+  allocate(seed(p))
+  seed = 17 * [(i - is, i = 1, p)]  ! build a reproducible seed, instead of a random one
+  call random_seed(put=seed)        ! fix the seed: same seed always gives the same numbers
+  deallocate(seed)
+
+  call random_number(r)             ! fills r with reals in [0, 1)
+  print *, r
+
+end program random_numbers
+```
+
+Running this twice in a row gives the exact same two numbers both
+times — the fixed seed, not chance. The actual values are
+compiler-specific (different Fortran compilers implement the generator
+differently), only the "same seed → same sequence" guarantee is
+portable.
+
+(see [src/70_random_numbers.f90](../src/70_random_numbers.f90)) — build & run: `make && ./bin/70_random_numbers`
+
+---
+
+## 71. One job per routine
+
+A common anti-pattern: one subroutine that does several unrelated
+things, chosen by a flag argument. It's harder to read (you have to
+mentally branch through every case) and harder to reuse (you can never
+call just one block without the flag machinery).
+
+Bad — one routine, many things, picked by `stage`:
+
+```fortran
+subroutine answer_to_all(x, stage)
+  real, intent(inout) :: x
+  integer, intent(in) :: stage
+
+  x = x + 1.0            ! block 1
+  if (stage == 1) then
+    x = x * 2.0           ! block 2
+  else
+    x = x - 3.0           ! block 3
+  end if
+end subroutine answer_to_all
+```
+
+(see [src/71_one_job_bad.f90](../src/71_one_job_bad.f90)) — build & run: `make && ./bin/71_one_job_bad`
+
+Good — each routine does exactly one thing; the caller combines them:
+
+```fortran
+subroutine block_1(x)
+  real, intent(inout) :: x
+  x = x + 1.0
+end subroutine block_1
+
+subroutine block_2(x)
+  real, intent(inout) :: x
+  x = x * 2.0
+end subroutine block_2
+
+subroutine block_3(x)
+  real, intent(inout) :: x
+  x = x - 3.0
+end subroutine block_3
+```
+
+(see [src/71_one_job_good.f90](../src/71_one_job_good.f90)) — build & run: `make && ./bin/71_one_job_good`
+
+Both produce identical results (`12.0` and `3.0` for the same starting
+value) — splitting them apart changes nothing about behavior, only how
+easy the code is to read, test, and reuse.
+
+---
+
+## 72. Named constants instead of magic numbers
+
+Bare numbers scattered through conditionals and array indices (`vdw ==
+1`, `energies(3)`) force the reader to remember what each number means.
+Naming them with `parameter` (section 19) makes the code explain
+itself.
+
+Bad:
+
+```fortran
+if (vdw == 0) then
+  print *, 'Lennard-Jones'
+else if (vdw == 1) then
+  print *, 'Morse'
+else if (vdw == 2) then
+  print *, 'Buckingham'
+end if
+
+energy = energies(1) + energies(3)   ! what do 1 and 3 even mean here?
+```
+
+(see [src/72_magic_numbers.f90](../src/72_magic_numbers.f90)) — build & run: `make && ./bin/72_magic_numbers`
+
+Good:
+
+```fortran
+integer, parameter :: POT_LJ = 0, POT_MORSE = 1, POT_BUCK = 2
+integer, parameter :: ENER_KINETIC = 1, ENER_POTENTIAL = 3
+...
+if (vdw == POT_LJ) then
+  print *, 'Lennard-Jones'
+else if (vdw == POT_MORSE) then
+  print *, 'Morse'
+else if (vdw == POT_BUCK) then
+  print *, 'Buckingham'
+end if
+
+energy = energies(ENER_KINETIC) + energies(ENER_POTENTIAL)   ! self-explanatory now
+```
+
+(see [src/72_named_constants.f90](../src/72_named_constants.f90)) — build & run: `make && ./bin/72_named_constants`
+
+Both print the same thing (`Morse`, `40.0`) — again, purely a
+readability improvement, zero behavior change.
+
+One more caution from the same part of the course, with no code needed:
+**don't use modules as a dumping ground for shared mutable state**, the
+way old Fortran 77 `common` blocks were used. A module is great for
+constants, types, and procedures — but variables shared through a
+module become a race condition risk the moment your program runs on
+more than one core/thread at once. Keep state local and pass it
+explicitly through arguments instead.
+
+---
+
+## 73. Closing puzzle: a recursive sequence
+
+The course's closing slide poses a recurrence with no further
+explanation, as a bonus puzzle: `x_{n+1} = 108 - 815/x_{n-1} - 1500/x_n`,
+with `x_0 = 4`, `x_1 = 17/4`. What's `x_42`?
+
+```fortran
+program recursive_puzzle
+  implicit none
+  real(kind=8) :: x(0:42)
+  integer :: n
+
+  x(0) = 4.0d0
+  x(1) = 17.0d0 / 4.0d0
+
+  do n = 1, 41
+    x(n+1) = 108.0d0 - 815.0d0/x(n-1) - 1500.0d0/x(n)
+  end do
+
+  print *, x(42)
+
+end program recursive_puzzle
+```
+
+`x(42) ≈ 78.5153`. Recurrences shaped like this one are famous in
+numerical analysis for sometimes being ill-conditioned — tiny rounding
+errors can get amplified every step until the computed answer has
+nothing to do with the "true" mathematical one. Worth checking whether
+*this* one actually behaves that way: rerunning it in single precision
+(`real` instead of `real(kind=8)`), or nudging `x_1` by `1e-10`, gives
+the exact same answer to many decimal places either way — so this
+particular sequence turns out to be robustly convergent to that fixed
+point, not the runaway-divergence trap the classic examples warn about.
+A good closing exercise: try perturbing the inputs further, or plotting
+`x(n)` for increasing `n`, to see the convergence yourself.
+
+(see [src/73_recursive_puzzle.f90](../src/73_recursive_puzzle.f90)) — build & run: `make && ./bin/73_recursive_puzzle`
+
+---
+
+## 74. Profiling with gprof
+
+`gprof` answers "where is my program actually spending its time?" —
+useful once a program is correct and you're trying to make it faster,
+instead of guessing which part to optimize.
+
+```sh
+gfortran -o hello.x -p hello.F90    # -p: build with profiling instrumentation
+./hello.x                            # running it writes out gmon.out
+gprof ./hello.x                      # reads gmon.out, prints a report
+```
+
+The report is a **flat profile**: a table of every function, how much
+total time was spent in it, and how many times it was called — the
+fastest way to spot "oh, 90% of the runtime is actually in this one
+function" instead of the one you assumed was slow.
+
+**Note:** this section is reference-only — I don't have `gprof`
+available to verify on this machine (it's a GNU/Linux profiling tool;
+`-p`-style instrumentation isn't well supported by Apple's toolchain on
+macOS). It should work as described on the Linux systems this course
+actually runs on (e.g. the STFC JupyterHub from earlier) — worth
+trying there rather than trusting an untested example here.

@@ -38,7 +38,8 @@ let the user ask for more.
 
 - Every file in `src/` gets a two-digit numeric prefix matching its
   section number in `docs/README.md`: `NN_name.f90` (or `.f` for
-  fixed-form).
+  fixed-form, `.F90` only when the file actually needs preprocessing,
+  e.g. `#ifdef`/`#define`).
 - Multiple files can share the same number when they belong to the same
   doc section (e.g. `05_function_example.f90` and
   `05_subroutine_example.f90`).

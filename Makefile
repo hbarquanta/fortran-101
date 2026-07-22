@@ -1,7 +1,9 @@
 FC = gfortran
 FCFLAGS = -Wall -Wextra -O2
 
-BIN = $(patsubst src/%.f90,bin/%,$(wildcard src/*.f90)) $(patsubst src/%.f,bin/%,$(wildcard src/*.f))
+BIN = $(patsubst src/%.f90,bin/%,$(wildcard src/*.f90)) \
+      $(patsubst src/%.f,bin/%,$(wildcard src/*.f)) \
+      $(patsubst src/%.F90,bin/%,$(wildcard src/*.F90))
 
 all: $(BIN)
 
@@ -10,6 +12,10 @@ bin/%: src/%.f90
 	$(FC) $(FCFLAGS) -o $@ $<
 
 bin/%: src/%.f
+	mkdir -p bin
+	$(FC) $(FCFLAGS) -o $@ $<
+
+bin/%: src/%.F90
 	mkdir -p bin
 	$(FC) $(FCFLAGS) -o $@ $<
 
